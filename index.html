@@ -119,36 +119,14 @@
     }
     #copyErrorListBtn:hover i {
       transform: scale(1.08);
-      color: #ffffff; /* hover color changed to white as requested */
+      color: var(--muted); /* keep same color on hover (no ugly color-shift) */
     }
     .copy-success {
       transform: scale(1.06);
       transition: color 260ms ease, transform 160ms ease;
       color: var(--accent) !important;
     }
-<<<<<<< HEAD
   </style>
-=======
-
-    /* Reset button specific styling: slightly spaced and visually distinct */
-    #resetBtn {
-      margin-left: 12px; /* afasta mais o botão */
-      background: linear-gradient(180deg,#ffffff,#f8fafc);
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 6px 18px rgba(2,6,23,0.04);
-      border-radius: 12px;
-    }
-
-    /* cor do texto no hover do botão Resetar (substitua o hex pelo que preferir) */
-#resetBtn:hover,
-#resetBtn:focus {
-  color: #23c423 !important; /* exemplo: azul-escuro; usar !important para sobrescrever o Bootstrap */
-  text-decoration: none;
-}
-
-
-</style>
->>>>>>> cdd4043 (Atualização - Botão de embaçar palavras adicionado e bug solucionados.)
 </head>
 <body>
   <div class="container">
@@ -709,8 +687,8 @@
         progressCircle.style.strokeDashoffset = `${CIRC}`;
         progressCircle.style.stroke = colorLerp(startColor, endColor, 0);
       }
-      if (centerSeconds) centerSeconds.textContent = '-';
-      if (timerDisplay) timerDisplay.textContent = '';
+      if (centerSeconds) centerSeconds.textContent='-';
+      if (timerDisplay) timerDisplay.textContent='';
     }
 
     function setCountdownFor(sec){
@@ -944,7 +922,8 @@
       if (pauseProxy) pauseProxy.classList.add('hidden');
     }
     function hideStartTimerProxy(){
-      if (startTimerProxy) return;
+      if (startTimerProxy) startTimerProxy.classList.add('hidden');
+      if(isAuto && pauseProxy) pauseProxy.classList.remove('hidden'); else if (pauseProxy) pauseProxy.classList.add('hidden');
     }
 
     function showMainErrorProxies(){
@@ -1248,11 +1227,7 @@
       // reset all application
       if (resetBtn) resetBtn.addEventListener('click', () => {
         // **Important change:** Reset truly clears everything, including the errorMode toggle
-<<<<<<< HEAD
         // (user must activate it again).
-=======
-        // and all options (Timer, Ditado de Erradas, Narrador) — factory defaults.
->>>>>>> cdd4043 (Atualização - Botão de embaçar palavras adicionado e bug solucionados.)
         words = []; index = 0;
         currentMarkedWrongWords = []; reviewMarkedWrongWords = []; wrongGenerations = [];
         currentGenerationIndex = -1; lastReviewedGenerationIndex = -1;
@@ -1261,23 +1236,6 @@
         dictationRunning = false;
         isAuto = false; isPaused = false; autoArmed = false;
 
-<<<<<<< HEAD
-=======
-        // Reset narrator and announce toggles to factory defaults (enabled)
-        narratorEnabled = true; announceNextEnabled = true;
-        if (narratorToggle) {
-          narratorToggle.checked = true;
-          const label = narratorToggle.nextElementSibling;
-          if (label) label.textContent = 'Narrador (ativado)';
-        }
-        if (announceNextToggle) {
-          announceNextToggle.checked = true;
-          const label2 = announceNextToggle.nextElementSibling;
-          if (label2) label2.textContent = 'Falar "Próxima palavra" (ativado)';
-        }
-        if (repeatBtn) repeatBtn.disabled = !narratorEnabled;
-
->>>>>>> cdd4043 (Atualização - Botão de embaçar palavras adicionado e bug solucionados.)
         // UI resets
         if (wordListEl) wordListEl.value = '';
         if (currentWordEl) currentWordEl.textContent = '';
@@ -1294,22 +1252,11 @@
         if (nextBtn) nextBtn.disabled = true;
         setPauseVisual(false);
 
-<<<<<<< HEAD
         // **Reset the toggle**: now it becomes deactivated
         errorMode = false;
         setErrorToggleVisual(false);
 
         // clear saved state
-=======
-        // Reset the toggle: now it becomes deactivated
-        errorMode = false;
-        setErrorToggleVisual(false);
-
-        // Reset auto armed visual and narrator visuals
-        setAutoArmedVisual(false);
-
-        // clear saved state and timers
->>>>>>> cdd4043 (Atualização - Botão de embaçar palavras adicionado e bug solucionados.)
         clearSavedState();
         clearCountdown();
         clearCopyIconTimersAndRestore();
@@ -1391,22 +1338,15 @@
       if (nextBtn) nextBtn.addEventListener('click', () => { clearCountdown(); advanceDictation(true); updateWordCounter(); });
 
       // repeat
-      if (repeatBtn) repeatBtn.addEventListener('click', async () => {
-        // Robust repeat handler: speak the current word using speakWithPromise so it
-        // respects narrator settings and fallback timing. Keeps the rotate animation
-        // and ensures the class is removed even if tts fails.
-        if (!words || !words.length) return;
-        const current = (typeof index === 'number' && words[index]) ? words[index] : (currentWordEl && currentWordEl.textContent ? currentWordEl.textContent.trim() : '');
-        if (!current) return;
-        if (!narratorEnabled) { statusEl.textContent = 'Narrador desativado.'; return; }
-
-        repeatBtn.classList.add('btn-rotate');
-        try {
-          await speakWithPromise(current, { interrupt: true, fallbackMs: 1200 });
-        } catch (e) {
-          // swallow errors but ensure UI is consistent
-        } finally {
-          repeatBtn.classList.remove('btn-rotate');
+      if (repeatBtn) repeatBtn.addEventListener('click', () => {
+        if (!words.length || !currentWordEl.textContent) return;
+        if (narratorEnabled) {
+          repeatBtn.classList.add('btn-rotate');
+          try{ speechSynthesis.cancel(); }catch(e){}
+          const u=new SpeechSynthesisUtterance(words[index]); u.lang='pt-BR';
+          u.onend=()=>{ repeatBtn.classList.remove('btn-rotate'); };
+          speechSynthesis.speak(u);
+          setTimeout(()=>repeatBtn.classList.remove('btn-rotate'),1200);
         }
       });
 
@@ -1482,9 +1422,9 @@
           if (_copyIconTimers.colorTimer) { clearTimeout(_copyIconTimers.colorTimer); _copyIconTimers.colorTimer = null; }
           if (_copyIconTimers.resetTimer) { clearTimeout(_copyIconTimers.resetTimer); _copyIconTimers.resetTimer = null; }
 
-          // set check (WHITE) immediately
+          // set check (light blue) immediately
           iconEl.className = 'bi bi-check-lg';
-          iconEl.style.color = '#ffffff'; // <-- Alteração solicitada: cor branca imediata
+          iconEl.style.color = '#cfe8ff'; // <-- Cor alterada para azul bem claro
           iconEl.classList.remove('copy-success');
 
           // after 1s -> green
