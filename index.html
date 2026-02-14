@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Ditado — Opções (Timer / Erradas / Narrador)</title>
 
+  <!-- Favicon (SVG embutido, visual mais marcante) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%2310b981'/%3E%3Cg transform='translate(18,24)' fill='%23ffffff'%3E%3Crect x='6' y='6' width='50' height='36' rx='3'/%3E%3Cpath d='M6 6h50v6H6z' fill='%23e6f9ef'/%3E%3Ccircle cx='44' cy='20' r='6'/%3E%3C/g%3E%3C/svg%3E">
+
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -119,12 +122,21 @@
     }
     #copyErrorListBtn:hover i {
       transform: scale(1.08);
-      color: var(--muted); /* keep same color on hover (no ugly color-shift) */
+      color: #ffffff; /* hover color changed to white as requested earlier */
     }
     .copy-success {
       transform: scale(1.06);
       transition: color 260ms ease, transform 160ms ease;
       color: var(--accent) !important;
+    }
+
+    /* Reset button specific styling: slightly spaced and visually distinct */
+    #resetBtn {
+      margin-left: 12px; /* afastado um pouco dos outros */
+      background: linear-gradient(180deg,#ffffff,#f8fafc);
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+      border-radius: 12px;
     }
   </style>
 </head>
@@ -598,6 +610,7 @@
       }
 
       updateWordCounter();
+      updateButtonStates();
     }
 
     /* ========== Helpers visuais e timer (mantidos) ========== */
@@ -687,8 +700,8 @@
         progressCircle.style.strokeDashoffset = `${CIRC}`;
         progressCircle.style.stroke = colorLerp(startColor, endColor, 0);
       }
-      if (centerSeconds) centerSeconds.textContent='-';
-      if (timerDisplay) timerDisplay.textContent='';
+      if (centerSeconds) centerSeconds.textContent = '-';
+      if (timerDisplay) timerDisplay.textContent = '';
     }
 
     function setCountdownFor(sec){
@@ -748,6 +761,16 @@
       }
       if (wordCounterEl) wordCounterEl.textContent = `${current} / ${total || 0}`;
       updateAddWrongAvailability();
+      updateButtonStates(); // ensure prev/next states also refreshed
+    }
+
+    // IMPORTANT FIX: synchronize prev/next without depending on dictationRunning
+    function updateButtonStates(){
+      const hasWords = words && words.length;
+      const canPrev = hasWords && index > 0 && !pendingLaunch;
+      const canNext = hasWords && index < (words.length - 1) && !pendingLaunch;
+      if (prevBtn) prevBtn.disabled = !canPrev;
+      if (nextBtn) nextBtn.disabled = !canNext;
     }
 
     function speakAndShow(text){
@@ -790,6 +813,7 @@
       if (pauseProxy) pauseProxy.classList.add('hidden');
       if(isAuto && !isPaused && !pendingLaunch) setCountdownFor(Math.max(1, parseInt(intervalInputProxy.value || 3,10)));
       updateAddWrongAvailability();
+      updateButtonStates();
       saveState();
     }
 
@@ -800,6 +824,7 @@
         if (prevBtn) prevBtn.disabled = false;
         if(isAuto && !isPaused && !pendingLaunch) setCountdownFor(Math.max(1, parseInt(intervalInputProxy.value || 3,10)));
       } else finishDictation();
+      updateButtonStates();
       saveState();
     }
 
@@ -873,6 +898,7 @@
       showInactiveClock();
       renderWrongWords();
       updateAddWrongAvailability();
+      updateButtonStates();
       saveState();
     }
 
@@ -922,8 +948,7 @@
       if (pauseProxy) pauseProxy.classList.add('hidden');
     }
     function hideStartTimerProxy(){
-      if (startTimerProxy) startTimerProxy.classList.add('hidden');
-      if(isAuto && pauseProxy) pauseProxy.classList.remove('hidden'); else if (pauseProxy) pauseProxy.classList.add('hidden');
+      if (startTimerProxy) return;
     }
 
     function showMainErrorProxies(){
@@ -988,6 +1013,33 @@
       } catch(e){ /* swallow */ }
     }
 
+    // Central add wrong helper - robust and used by button and keyboard
+    function addCurrentWordAsWrong(){
+      if (pendingLaunch) { statusEl.textContent = 'Finalize "Iniciar Erradas" antes de marcar palavras.'; return; }
+      const cur = currentWordEl && currentWordEl.textContent ? currentWordEl.textContent.trim() : '';
+      if (!cur) return;
+      if (!errorMode) return;
+      if (isReviewMode) {
+        if (!reviewMarkedWrongWords.includes(cur)) {
+          reviewMarkedWrongWords.push(cur);
+          statusEl.textContent = `"${cur}" adicionada às erradas (revisão).`;
+          saveState();
+        } else {
+          statusEl.textContent = `"${cur}" já está nas erradas (revisão).`;
+        }
+      } else {
+        if (!currentMarkedWrongWords.includes(cur)) {
+          currentMarkedWrongWords.push(cur);
+          statusEl.textContent = `"${cur}" adicionada às erradas.`;
+          saveState();
+        } else {
+          statusEl.textContent = `"${cur}" já está nas erradas.`;
+        }
+      }
+      renderWrongWords();
+      updateAddWrongAvailability();
+    }
+
     // === Eventos e comportamentos principais ===
     (function attachListeners(){
       // Auto (menu)
@@ -1027,27 +1079,8 @@
       // interval change
       if (intervalInputProxy) intervalInputProxy.addEventListener('change', (e) => { if(isAuto && !isPaused && !pendingLaunch) setCountdownFor(Math.max(1, parseInt(intervalInputProxy.value || 3,10))); });
 
-      // add wrong
-      if (addWrongProxy) addWrongProxy.addEventListener('click', () => {
-        if (pendingLaunch) { statusEl.textContent = 'Finalize "Iniciar Erradas" antes de marcar palavras.'; return; }
-        const cur = currentWordEl && currentWordEl.textContent ? currentWordEl.textContent.trim() : '';
-        if (!cur) return;
-        if (!errorMode) return;
-        if (isReviewMode) {
-          if (!reviewMarkedWrongWords.includes(cur)) {
-            reviewMarkedWrongWords.push(cur);
-            statusEl.textContent = `"${cur}" adicionada às erradas (revisão).`;
-            saveState();
-          }
-        } else {
-          if (!currentMarkedWrongWords.includes(cur)) {
-            currentMarkedWrongWords.push(cur);
-            statusEl.textContent = `"${cur}" adicionada às erradas.`;
-            saveState();
-          }
-        }
-        renderWrongWords();
-      });
+      // add wrong (button)
+      if (addWrongProxy) addWrongProxy.addEventListener('click', () => addCurrentWordAsWrong());
 
       // startErrorProxy: prepara a revisão a partir das erradas atuais
       if (startErrorProxy) startErrorProxy.addEventListener('click', () => {
@@ -1073,6 +1106,7 @@
         updateAddWrongAvailability();
         renderWrongWords();
         updateWordCounter();
+        updateButtonStates();
         saveState();
       });
 
@@ -1222,12 +1256,13 @@
 
         // Ensure UI reflects toggle state (clean)
         setErrorToggleVisual(errorMode);
+        updateButtonStates();
       });
 
       // reset all application
       if (resetBtn) resetBtn.addEventListener('click', () => {
         // **Important change:** Reset truly clears everything, including the errorMode toggle
-        // (user must activate it again).
+        // and all options (Timer, Ditado de Erradas, Narrador) — factory defaults.
         words = []; index = 0;
         currentMarkedWrongWords = []; reviewMarkedWrongWords = []; wrongGenerations = [];
         currentGenerationIndex = -1; lastReviewedGenerationIndex = -1;
@@ -1235,6 +1270,20 @@
         isReviewMode = false; pendingLaunch = false; canShowRedo = false;
         dictationRunning = false;
         isAuto = false; isPaused = false; autoArmed = false;
+
+        // Reset narrator and announce toggles to factory defaults (enabled)
+        narratorEnabled = true; announceNextEnabled = true;
+        if (narratorToggle) {
+          narratorToggle.checked = true;
+          const label = narratorToggle.nextElementSibling;
+          if (label) label.textContent = 'Narrador (ativado)';
+        }
+        if (announceNextToggle) {
+          announceNextToggle.checked = true;
+          const label2 = announceNextToggle.nextElementSibling;
+          if (label2) label2.textContent = 'Falar "Próxima palavra" (ativado)';
+        }
+        if (repeatBtn) repeatBtn.disabled = !narratorEnabled;
 
         // UI resets
         if (wordListEl) wordListEl.value = '';
@@ -1252,11 +1301,14 @@
         if (nextBtn) nextBtn.disabled = true;
         setPauseVisual(false);
 
-        // **Reset the toggle**: now it becomes deactivated
+        // Reset the toggle: now it becomes deactivated
         errorMode = false;
         setErrorToggleVisual(false);
 
-        // clear saved state
+        // Reset auto armed visual and narrator visuals
+        setAutoArmedVisual(false);
+
+        // clear saved state and timers
         clearSavedState();
         clearCountdown();
         clearCopyIconTimersAndRestore();
@@ -1366,26 +1418,49 @@
         });
       }
 
-      // keyboard shortcuts (inclui marcação por ArrowDown)
+      // keyboard shortcuts (inclui marcação por ArrowDown e novo toggle blur via ↑+↓)
+      const keysDown = {};
+      let lastBlurToggleTs = 0;
       document.addEventListener('keydown', (e) => {
         const active = document.activeElement && document.activeElement.tagName ? document.activeElement.tagName.toLowerCase() : '';
+        // track keys
+        keysDown[e.key] = true;
+
+        // detect simultaneous ArrowUp + ArrowDown to toggle blur
+        if (keysDown['ArrowUp'] && keysDown['ArrowDown']) {
+          const now = Date.now();
+          if (now - lastBlurToggleTs > 600) { // debounce 600ms
+            e.preventDefault();
+            blurOn = !blurOn;
+            blurToggleBtn.setAttribute('aria-pressed', String(!!blurOn));
+            if (blurOn) {
+              blurIcon.classList.remove('bi-eye'); blurIcon.classList.add('bi-eye-slash');
+              if (currentWordEl) currentWordEl.classList.add('blurred');
+            } else {
+              blurIcon.classList.remove('bi-eye-slash'); blurIcon.classList.add('bi-eye');
+              if (currentWordEl) currentWordEl.classList.remove('blurred');
+            }
+            lastBlurToggleTs = now;
+            saveState();
+            return;
+          }
+        }
+
         if(active === 'input' || active === 'textarea') return;
         if(e.key === 'ArrowUp'){ e.preventDefault(); if(!repeatBtn.disabled) repeatBtn.click(); return; }
 
         if(errorMode && !pendingLaunch && e.key === 'ArrowDown' && currentWordEl && currentWordEl.textContent){
           e.preventDefault();
-          const w = currentWordEl.textContent.trim();
-          if (!w) return;
-          if (isReviewMode) {
-            if (!reviewMarkedWrongWords.includes(w)) { reviewMarkedWrongWords.push(w); statusEl.textContent = `"${w}" adicionada às erradas (revisão).`; saveState(); }
-          } else {
-            if (!currentMarkedWrongWords.includes(w)) { currentMarkedWrongWords.push(w); statusEl.textContent = `"${w}" adicionada às erradas.`; saveState(); }
-          }
-          renderWrongWords();
+          addCurrentWordAsWrong();
           return;
         }
 
         if(e.key === 'ArrowRight'){ e.preventDefault(); if(!nextBtn.disabled) nextBtn.click(); } else if(e.key === 'ArrowLeft'){ e.preventDefault(); if(!prevBtn.disabled) prevBtn.click(); }
+      });
+
+      document.addEventListener('keyup', (e) => {
+        // clear tracked key
+        try { delete keysDown[e.key]; } catch(e){}
       });
 
       // clique para remover errada da lista exibida (usa data-word)
@@ -1422,9 +1497,9 @@
           if (_copyIconTimers.colorTimer) { clearTimeout(_copyIconTimers.colorTimer); _copyIconTimers.colorTimer = null; }
           if (_copyIconTimers.resetTimer) { clearTimeout(_copyIconTimers.resetTimer); _copyIconTimers.resetTimer = null; }
 
-          // set check (light blue) immediately
+          // set check (WHITE) immediately
           iconEl.className = 'bi bi-check-lg';
-          iconEl.style.color = '#cfe8ff'; // <-- Cor alterada para azul bem claro
+          iconEl.style.color = '#ffffff'; // branco imediato
           iconEl.classList.remove('copy-success');
 
           // after 1s -> green
@@ -1506,6 +1581,19 @@
       });
     })();
 
+    // ensure buttons update when user returns to tab or focuses window
+    window.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        // restore UI responsiveness
+        updateButtonStates();
+        updateAddWrongAvailability();
+      }
+    });
+    window.addEventListener('focus', () => {
+      updateButtonStates();
+      updateAddWrongAvailability();
+    });
+
     // initial state
     (function initialState(){
       showInactiveClock();
@@ -1525,6 +1613,7 @@
       if (blurOn && currentWordEl) currentWordEl.classList.add('blurred');
       updateAddWrongAvailability();
       clearCopyIconTimersAndRestore();
+      updateButtonStates();
     })();
   </script>
 </body>
